@@ -12,5 +12,6 @@ Finally, I will include a jupyter notebook with a brief visual comparison of the
 
 Further notes to be added here.
 
-> This Project is done as a project for Software Development 1 in my Masters Degree a
-> [University of Applied Sciences Kufstein](https://www.fh-kufstein.ac.at/) 
+> This Project is done as a project for Software Development 1 
+>
+>in my Masters Degree at [University of Applied Sciences Kufstein](https://www.fh-kufstein.ac.at/) 
