@@ -39,8 +39,19 @@ class ID3Tree:
 #        conditional_entropy =
 
     def next_split(self):
-        information_gains = {key: self.information_gain(key) for key in self.data.columns if key != self.target_column}
-        return information_gains
+        """
+        check information gain for all columns that are left, get the largest, return with name and IG
+        :return: dict()
+        """
+        split_attribute = {'attribute': None,
+                           'information_gain': 0}
+        for attribute in filter(lambda x: x != self.target_column, self.data.columns):
+            potential_ig = self.information_gain(attribute)
+            if potential_ig > split_attribute['information_gain']:
+                split_attribute['attribute'] = attribute
+                split_attribute['information_gain'] = self.information_gain(attribute)
+#        information_gains = {key: self.information_gain(key) for key in self.data.columns if key != self.target_column}
+        return split_attribute
 
     def fit(self,
             dependent_column: str):
