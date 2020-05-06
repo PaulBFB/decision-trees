@@ -38,7 +38,7 @@ def information_gain(before_split: np.array,
     """
 
     assert len(before_split) == (len(split_part_1) + len(split_part_2)), f"splits must add up to length of original{len(original)}/{len(split_part_1)+len(split_part_2)}"
-    assert sum(before_split) == sum(split_part_1) + sum(split_part_2), "probabilities of sub arrays do sum to same total as original"
+    assert sum(before_split) == sum(split_part_1) + sum(split_part_2), "probabilities of sub arrays do not sum to same total as original"
 
     # get parameters all arrays - size, entropy
     # only for convenience / readability
