@@ -15,6 +15,9 @@ def entropy(data: np.array):
     # for classes of 1 and 0 get probabilities
     probability_ones = data.sum() / len(data)
     probability_zeros = 1 - probability_ones
+    
+    if any((probability_ones == 0, probability_zeros == 0)):
+        return 0
 
     # standard entropy formula
     e = -(probability_ones * log2(probability_ones) + probability_zeros * log2(probability_zeros))
