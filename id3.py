@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from information_gain import entropy #, information_gain
 from math import log2
+from pprint import pprint
 
 
 class ID3Tree:
@@ -57,18 +58,19 @@ class ID3Tree:
         """
         splits data on attribute of next_split (max information gain) - get all unique outcomes of attribute and return
         list of dataframes (one for each outcome)
-        :return: list of pd.DataFrame
+        :return: dict with forma {attribute|ouctome: dataframe}
         """
         # get name of the attribute to split on
         split_on = self.next_split()['attribute']
         # initialize empty list to append onto
-        parts = list()
+        parts = dict()
         # get all possible outcomes, split with .loc method (in order to return copies
         for outcome in self.data[split_on].unique():
-            parts.append(self.data.loc[self.data[split_on] == outcome])
+            parts[f'{split_on}|{outcome}'] = self.data.loc[self.data[split_on] == outcome]
 
         # todo: drop the column that the data was split on for recursion??
         # todo: change output into dict with {[attribute|outcome]: [DataFrame]}
+        # does that make sense - what if subsequent splits are identical? duplicate dict keys?
 
         return parts
 
@@ -106,6 +108,5 @@ if __name__ == '__main__':
         print(t.information_gain(i))
 
     print(t.next_split())
-    parts_after_first_split = t.split()
-    for p in parts_after_first_split:
-        print(p.head())
+    split_test = t.split()
+    pprint(split_test)
