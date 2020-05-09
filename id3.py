@@ -53,6 +53,24 @@ class ID3Tree:
 #        information_gains = {key: self.information_gain(key) for key in self.data.columns if key != self.target_column}
         return split_attribute
 
+    def split(self):
+        """
+        splits data on attribute of next_split (max information gain) - get all unique outcomes of attribute and return
+        list of dataframes (one for each outcome)
+        :return: list of pd.DataFrame
+        """
+        # get name of the attribute to split on
+        split_on = self.next_split()['attribute']
+        # initialize empty list to append onto
+        parts = list()
+        # get all possible outcomes, split with .loc method (in order to return copies
+        for outcome in self.data[split_on].unique():
+            parts.append(self.data.loc[self.data[split_on] == outcome])
+
+        # todo: drop the column that the data was split on for recursion??
+
+        return parts
+
     def fit(self,
             dependent_column: str):
         pass
@@ -80,9 +98,13 @@ if __name__ == '__main__':
     t = ID3Tree(data=test_data,
                 target_column='go_out')
 
+    print(test_data.head())
+
     print(t)
     for i in ['forecast', 'temperature', 'humidity', 'windy']:
         print(t.information_gain(i))
 
     print(t.next_split())
-#    print(t.entropy())
+    parts_after_first_split = t.split()
+    for p in parts_after_first_split:
+        print(p.head())
