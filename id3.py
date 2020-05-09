@@ -68,6 +68,7 @@ class ID3Tree:
             parts.append(self.data.loc[self.data[split_on] == outcome])
 
         # todo: drop the column that the data was split on for recursion??
+        # todo: change output into dict with {[attribute|outcome]: [DataFrame]}
 
         return parts
 
