@@ -107,7 +107,8 @@ class ID3Tree:
 
     def find_rules(self,
                    data: pd.DataFrame = None,
-                   rules: dict = None):
+                   rules: dict = None,
+                   depth: int = 0):
         """
         recursively create rules for classification
         :param data: in recursion, uses a subset of the data
@@ -115,6 +116,7 @@ class ID3Tree:
         :return: dictionary of rules
         """
 
+        print(depth)
         # if no data is input, use init data
         if data is None:
             data = self.data
@@ -126,7 +128,7 @@ class ID3Tree:
 
         # create dict
         if rules is None:
-            rules = {}
+            rules = dict()
             rules[split_attribute] = {}
 
         # iterate over all outcomes in the split attribute, filter data and check for purity
@@ -140,8 +142,11 @@ class ID3Tree:
 
             # if outcome is not pure yet - recursion
             else:
-                rules[split_attribute][outcome] = self.find_rules(filtered)
+                rules[split_attribute][outcome] = self.find_rules(filtered,
+                                                                  depth=depth+1)
 
+        # todo: add max_depth - if max depth reached, use majority vote
+        # todo: only split if IG is > 0
         return rules
 
     def fit(self):
