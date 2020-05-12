@@ -24,6 +24,12 @@ class ID3Tree:
                          attribute: str,
                          data: pd.DataFrame = None
                          ):
+        """
+        find information gain for an attribute of the data
+        :param attribute: attribute to split the data on
+        :param data: used for recursion (takes a dataframe)
+        :return: dictionary
+        """
 
         if data is None:
             data = self.data
@@ -48,7 +54,7 @@ class ID3Tree:
                    data: pd.DataFrame = None):
         """
         check information gain for all columns that are left, get the largest, return with name and IG
-        :return: dict()
+        :return: dict
         """
 
         if data is None:
@@ -84,47 +90,65 @@ class ID3Tree:
         return parts
 
     def filter_data(self,
-                    attribute,
-                    value,
-                    data=None):
+                    attribute: str,
+                    value: str,
+                    data: pd.DataFrame = None):
+        """
+        filters data by an attribute and value
+        :param attribute: attribute to filter on
+        :param value: outcome to filter on
+        :param data: used for recursion
+        :return: pd.dataFrame
+        """
         if data is None:
             data = self.data
         filtered = data.loc[self.data[attribute] == value].reset_index(drop=True)
         return filtered
 
     def find_rules(self,
-                   data=None,
-                   rules=None):
+                   data: pd.DataFrame = None,
+                   rules: dict = None):
+        """
+        recursively create rules for classification
+        :param data: in recursion, uses a subset of the data
+        :param rules: used to initialize the dict
+        :return: dictionary of rules
+        """
 
+        # if no data is input, use init data
         if data is None:
             data = self.data
 
+        # find attribute with most IG to split on
         split_attribute = self.next_split(data)['attribute']
-#        print(split_attribute)
-
+        # list of unique outcomes in the split attribute
         outcomes = data[split_attribute].unique()
-#        print(outcomes)
 
+        # create dict
         if rules is None:
             rules = {}
             rules[split_attribute] = {}
 
+        # iterate over all outcomes in the split attribute, filter data and check for purity
         for outcome in outcomes:
             filtered = self.filter_data(split_attribute, outcome, data)
             values = filtered[self.target_column].unique()
-            #            print(values)
+
+            # if only one outcome remains (target column is pure) create a rule
             if len(values) == 1:
-#                print(rules)
                 rules[split_attribute][outcome] = values[0]
-#                print(rules)
+
+            # if outcome is not pure yet - recursion
             else:
                 rules[split_attribute][outcome] = self.find_rules(filtered)
-#                                                                  rules)
 
         return rules
-#        self.rules_ = rules
 
     def fit(self):
+        """
+        calls the find_rules method and sets rules into the rules_ parameter
+        :return: None
+        """
         rules = self.find_rules()
         self.rules_ = rules
 
