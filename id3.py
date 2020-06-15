@@ -16,14 +16,14 @@ class ID3Tree:
         self.rules_ = None
         self.target_column = target_column
         self.outcomes = data[target_column].unique()
+        self.max_depth = max_depth
 
         assert target_column in self.data.columns, "dependent column not found in data"
         assert len(self.outcomes) == 2, "classification target must have exactly two outcomes"
 
     def information_gain(self,
                          attribute: str,
-                         data: pd.DataFrame = None
-                         ):
+                         data: pd.DataFrame = None) -> float:
         """
         find information gain for an attribute of the data
         :param attribute: attribute to split the data on
@@ -51,7 +51,7 @@ class ID3Tree:
         return ig
 
     def next_split(self,
-                   data: pd.DataFrame = None):
+                   data: pd.DataFrame = None) -> dict:
         """
         check information gain for all columns that are left, get the largest, return with name and IG
         :return: dict
@@ -70,7 +70,7 @@ class ID3Tree:
 
         return split_attribute
 
-    def split(self):
+    def split(self) -> dict:
         """
         splits data on attribute of next_split (max information gain) - get all unique outcomes of attribute and return
         list of dataframes (one for each outcome)
@@ -92,7 +92,7 @@ class ID3Tree:
     def filter_data(self,
                     attribute: str,
                     value: str,
-                    data: pd.DataFrame = None):
+                    data: pd.DataFrame = None) -> pd.DataFrame:
         """
         filters data by an attribute and value
         :param attribute: attribute to filter on
@@ -113,6 +113,7 @@ class ID3Tree:
         recursively create rules for classification
         :param data: in recursion, uses a subset of the data
         :param rules: used to initialize the dict
+        :param depth: integer to limit stack depth in recursion
         :return: dictionary of rules
         """
 
