@@ -70,25 +70,6 @@ class ID3Tree:
 
         return split_attribute
 
-    def split(self) -> dict:
-        """
-        splits data on attribute of next_split (max information gain) - get all unique outcomes of attribute and return
-        list of dataframes (one for each outcome)
-        :return: dict with forma {attribute|ouctome: dataframe}
-        """
-        # get name of the attribute to split on
-        split_on = self.next_split()['attribute']
-        # initialize empty list to append onto
-        parts = dict()
-        # get all possible outcomes, split with .loc method (in order to return copies
-        for outcome in self.data[split_on].unique():
-            parts[f'{split_on}|{outcome}'] = self.data.loc[self.data[split_on] == outcome].drop(columns=[split_on])
-
-        self.data.drop(columns=[split_on], inplace=True)
-        # does that make sense - what if subsequent splits are identical? duplicate dict keys?
-
-        return parts
-
     def filter_data(self,
                     attribute: str,
                     value: str,
@@ -103,6 +84,9 @@ class ID3Tree:
         if data is None:
             data = self.data
         filtered = data.loc[self.data[attribute] == value].reset_index(drop=True)
+
+        # make sure to drop the filtered-on column, since it's "pure" now
+        filtered.drop(columns=[attribute], inplace=True)
         return filtered
 
     def find_rules(self,
@@ -111,40 +95,38 @@ class ID3Tree:
         """
         recursively create rules for classification
         :param data: in recursion, uses a subset of the data
-        :param rules: used to initialize the dict
         :param depth: integer to limit stack depth in recursion
         :return: dictionary of rules
         """
 
         # if no data is input, use init data
         if data is None:
-            data = self.data
+            return
 
         # find attribute with most IG to split on
         split_options = self.next_split(data)
-#        print(f'depth test{depth}')
-#        print(split_options)
+
+        # if there are no attributes left to split on or no information can be gained --> fin
+        if split_options['attribute'] is None or 'information_gain' == 0:
+            return
         split_attribute = split_options['attribute']
+        print(split_options)
+
         # list of unique outcomes in the split attribute
         outcomes = data[split_attribute].unique()
 
-#        rules = self.rules_
-
         # create dict
-#        if rules is None:
         rules = dict()
-        rules[split_attribute] = {}
+        rules[split_attribute] = dict()
 
         # iterate over all outcomes in the split attribute, filter data and check for purity
         for outcome in outcomes:
             filtered = self.filter_data(split_attribute, outcome, data)
+#            print(filtered.head())
             values = filtered[self.target_column].unique()
 
             # if only one outcome remains (target column is pure) create a rule
             if len(values) == 1:
-#                print('----------------------')
-#                print(depth)
-#                print(filtered.head())
                 rules[split_attribute][outcome] = values[0]
 
             # if outcome is not pure yet - recursion
@@ -152,10 +134,6 @@ class ID3Tree:
                 rules[split_attribute][outcome] = self.find_rules(filtered,
                                                                   depth=depth+1)
 
-            else:
-                return
-
-        # todo: only split if IG is > 0
         return rules
 
     def fit(self):
@@ -163,7 +141,7 @@ class ID3Tree:
         calls the find_rules method and sets rules into the rules_ parameter
         :return: None
         """
-        rules = self.find_rules()
+        rules = self.find_rules(self.data)
         self.rules_ = rules
 
     def score(self,
@@ -185,7 +163,7 @@ if __name__ == '__main__':
         test_data = pd.read_csv(file)
     t = ID3Tree(data=test_data,
                 target_column='go_out',
-                max_depth=3
+                max_depth=None
                 )
 
 #    print(t.next_split())
@@ -193,8 +171,49 @@ if __name__ == '__main__':
 #    t.find_rules()
     t.fit()
     pprint(t.rules_)
-#    print(t.filter_data('forecast', 'sunny'))
+    pprint(t.find_rules())
+    print(t.filter_data('forecast', 'sunny'))
 #    print(t.next_split(t.filter_data('forecast', 'rain')))
 #    d = t.filter_data('forecast', 'sunny')
 #    print(d)
 #    print(t.next_split(data=d))
+
+#    print(test_data.loc[1])
+
+#    print(type(test_data.loc[1]))
+#    print(t.rules_.keys())
+
+#    first_key = list(t.rules_.keys())[0]
+#    first_value = t.rules_[first_key]
+
+#    print(test_data.loc[1, first_key])
+#    print(first_value)
+
+#    second_key = test_data.loc[1, first_key]
+#    print(second_key)
+
+#    print(t.rules_[first_key][second_key])
+
+#    rule_dict = t.rules_
+
+    def get_prediction(rule_dict,
+                       row: pd.Series):
+
+        if isinstance(rule_dict, dict):
+            column = list(rule_dict.keys())[0]
+
+#            print(column)
+
+#            print(rule_dict[column])
+            rule_dict = rule_dict[column][row[column]]
+
+            return get_prediction(rule_dict, row)
+
+        else:
+            return rule_dict
+
+
+#    test_data['predictions'] = test_data.apply(lambda x: get_prediction(rule_dict=t.rules_, row=x), axis=0)
+
+#    print(test_data.loc[13])
+#    print(get_prediction(t.rules_, test_data.loc[13]))
