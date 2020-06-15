@@ -110,7 +110,6 @@ class ID3Tree:
         if split_options['attribute'] is None or 'information_gain' == 0:
             return
         split_attribute = split_options['attribute']
-        print(split_options)
 
         # list of unique outcomes in the split attribute
         outcomes = data[split_attribute].unique()
@@ -215,5 +214,5 @@ if __name__ == '__main__':
 
 #    test_data['predictions'] = test_data.apply(lambda x: get_prediction(rule_dict=t.rules_, row=x), axis=0)
 
-#    print(test_data.loc[13])
-#    print(get_prediction(t.rules_, test_data.loc[13]))
+    print(test_data.loc[13])
+    print(get_prediction(t.rules_, test_data.loc[13]))
