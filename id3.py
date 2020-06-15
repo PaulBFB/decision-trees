@@ -100,15 +100,38 @@ class ID3Tree:
         """
 
         # if no data is input, use init data
-        if data is None:
-            return
+#        if data is None:
+#            return
 
         # find attribute with most IG to split on
         split_options = self.next_split(data)
 
-        # if there are no attributes left to split on or no information can be gained --> fin
-        if split_options['attribute'] is None or 'information_gain' == 0:
+        # if there are no attributes left to split on --> fin
+        if split_options['information_gain'] == 0:
+            # error - this leads to an edge case in 3 different ways
+            # example: test data index 13, no more attributes to split on but 50/50 impure data
+            # todo: implement majority-voting in leaves
+            # todo: change recursion from looking forward (i.e. on next_split)
+            # todo: implement tie breakers as mentioned here:
+            # https://iopscience.iop.org/1748-3190/12/1/011004/media/bbaa416dsd.pdf
+#            print(data.loc[0, 'go_out'])
+#            print(data)
+#            print(data.columns)
+            # simply grab the first column
+            pseudo_column = data.columns.to_list()[0]
+            print(pseudo_column)
+            # associate with first value
+            pseudo_value = data.loc[0, pseudo_column]
+            pseudo_target = data.loc[0, self.target_column]
+            print(data.head())
+            pseudo_rule = {pseudo_column: {pseudo_value: pseudo_target}}
+            print(pseudo_rule)
+            return pseudo_rule
+
+        elif split_options['attribute'] is None:
+            # todo: implement majority voting here
             return
+
         split_attribute = split_options['attribute']
 
         # list of unique outcomes in the split attribute
@@ -170,8 +193,6 @@ if __name__ == '__main__':
 #    t.find_rules()
     t.fit()
     pprint(t.rules_)
-    pprint(t.find_rules())
-    print(t.filter_data('forecast', 'sunny'))
 #    print(t.next_split(t.filter_data('forecast', 'rain')))
 #    d = t.filter_data('forecast', 'sunny')
 #    print(d)
