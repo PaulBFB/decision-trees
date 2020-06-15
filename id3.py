@@ -107,7 +107,6 @@ class ID3Tree:
 
     def find_rules(self,
                    data: pd.DataFrame = None,
-                   rules: dict = None,
                    depth: int = 0):
         """
         recursively create rules for classification
@@ -117,20 +116,24 @@ class ID3Tree:
         :return: dictionary of rules
         """
 
-        print(depth)
         # if no data is input, use init data
         if data is None:
             data = self.data
 
         # find attribute with most IG to split on
-        split_attribute = self.next_split(data)['attribute']
+        split_options = self.next_split(data)
+#        print(f'depth test{depth}')
+#        print(split_options)
+        split_attribute = split_options['attribute']
         # list of unique outcomes in the split attribute
         outcomes = data[split_attribute].unique()
 
+#        rules = self.rules_
+
         # create dict
-        if rules is None:
-            rules = dict()
-            rules[split_attribute] = {}
+#        if rules is None:
+        rules = dict()
+        rules[split_attribute] = {}
 
         # iterate over all outcomes in the split attribute, filter data and check for purity
         for outcome in outcomes:
@@ -139,14 +142,19 @@ class ID3Tree:
 
             # if only one outcome remains (target column is pure) create a rule
             if len(values) == 1:
+#                print('----------------------')
+#                print(depth)
+#                print(filtered.head())
                 rules[split_attribute][outcome] = values[0]
 
             # if outcome is not pure yet - recursion
-            else:
+            elif self.max_depth is None or depth < self.max_depth:
                 rules[split_attribute][outcome] = self.find_rules(filtered,
                                                                   depth=depth+1)
 
-        # todo: add max_depth - if max depth reached, use majority vote
+            else:
+                return
+
         # todo: only split if IG is > 0
         return rules
 
@@ -176,7 +184,9 @@ if __name__ == '__main__':
     with open('./weather_decision.csv', mode='r') as file:
         test_data = pd.read_csv(file)
     t = ID3Tree(data=test_data,
-                target_column='go_out')
+                target_column='go_out',
+                max_depth=3
+                )
 
 #    print(t.next_split())
 #    print(t.data.head())
