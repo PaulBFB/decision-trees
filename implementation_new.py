@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 from math import log2
+from pprint import pprint
 
 
 t_col = 'Survived'
+p_case = 1
 
 
 def entropy(data: np.array) -> float:
@@ -17,7 +19,7 @@ def entropy(data: np.array) -> float:
     assert data.ndim == 1, f"input data must be 1 dimensional array - input has {data.ndim}"
 
     # for classes of 1 and 0 get probabilities
-    probability_ones = data.sum() / len(data)
+    probability_ones = np.sum(data) / len(data)
     probability_zeros = 1 - probability_ones
 
     if any((probability_ones == 0, probability_zeros == 0)):
@@ -36,7 +38,7 @@ def load_data(path: str) -> pd.DataFrame:
     :return:
     """
     with open(path, mode='r') as file:
-        data = pd.read_csv(file, dtype={'Survived': bool})
+        data = pd.read_csv(file) #, dtype={'Survived': bool})
 
     return data
 
@@ -195,6 +197,57 @@ def gini_index(before_split: pd.DataFrame,
     return gini
 
 
+def create_leaf(part: pd.DataFrame,
+                target_column: str = t_col):
+
+    most_frequent = part[target_column].mode()[0]
+
+    return most_frequent
+
+
+def split(node, max_depth, min_size, depth):
+
+#    print(node)
+    if node['best_information_gain'] == 0:
+        return
+
+    sub_nodes = node['splits']
+    number_nodes = len(sub_nodes)
+
+    del (node['splits'])
+
+    if len(sub_nodes) == 1:
+        # only one group is left, make a leaf
+        node['left'] = node['right'] = create_leaf(pd.concat(sub_nodes))
+        return
+
+    # check if max_depth is reached
+    if depth >= max_depth:
+        # create a leaf for each group
+        for i in range(number_nodes):
+            node[i] = create_leaf(sub_nodes[i])
+        return
+
+    # process all child nodes
+    for i in range(number_nodes):
+        child_node = sub_nodes[i]
+
+        # check for minimum size
+        if child_node.shape[0] <= min_size:
+            node[i] = create_leaf(child_node)
+
+        else:
+            node[i] = find_ideal_split(child_node)
+            split(node[i], max_depth, min_size, depth=depth+1)
+
+
+def grow_tree(data, max_depth, min_leaf_size):
+    root = find_ideal_split(data)
+    split(root, max_depth, min_leaf_size, 1)
+
+    return root
+
+
 if __name__ == '__main__':
     df = load_data('./data/titanic.csv')
 #    print(df.dtypes)
@@ -204,7 +257,7 @@ if __name__ == '__main__':
     df.dropna(subset=['Embarked'], inplace=True)
     df.drop(columns=['Ticket', 'Name', 'Cabin', 'PassengerId'], inplace=True)
 
-    print(df.isna().mean().sort_values(ascending=False))
+#    print(df.isna().mean().sort_values(ascending=False))
 
 #    print(information_gain(df, split_numeric('Age', value=25, data=df)))
 #    print(gini_index(df, split_numeric('Age', value=25, data=df), [False, True]))
@@ -217,4 +270,10 @@ if __name__ == '__main__':
         #split_non_numeric(i, df)
 
     best_initial = find_ideal_split(df)
-    print(best_initial)
+#    print(best_initial)
+
+    leaf = create_leaf(df)
+    print(leaf)
+
+    tree = grow_tree(df, 3, 5)
+    pprint(tree)
