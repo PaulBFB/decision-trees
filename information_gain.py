@@ -2,7 +2,7 @@ import numpy as np
 from math import log2
 
 
-def entropy(data: np.array):
+def entropy(data: np.array) -> float:
     """
     calculates the entropy of an outcome array of 1 and 0
 
@@ -26,38 +26,38 @@ def entropy(data: np.array):
 
 
 def information_gain(before_split: np.array,
-                     split_part_1: np.array,
-                     split_part_2: np.array):
+                     splits: list) -> float:
     """
     takes an original array and two sub-array and calculates information gain in bits based on entropy base 2
 
     :param before_split: array, 1 and 0
-    :param split_part_1: sub-array of original, 1 and 0
-    :param split_part_2: sub-array of original, 1 and 0
+    :param splits: list of arrays, sub-arrays of before_splits
     :return: float
     """
 
-    assert len(before_split) == (len(split_part_1) + len(split_part_2)), f"splits must add up to length of original{len(original)}/{len(split_part_1)+len(split_part_2)}"
-    assert sum(before_split) == sum(split_part_1) + sum(split_part_2), "probabilities of sub arrays do not sum to same total as original"
+    assert len(before_split) == sum([len(split) for split in splits]), f"splits must add up to length of original{len(original)}/{sum([len(i) for i in splits])}"
+    assert sum(before_split) == sum([sum(split) for split in splits]), "probabilities of sub arrays do not sum to same total as original"
 
     # get parameters all arrays - size, entropy
     # only for convenience / readability
     size_before = len(before_split)
     entropy_before = entropy(before_split)
 
-    size_part_1 = len(split_part_1)
-    entropy_part_1 = entropy(split_part_1)
+    entropy_after = 0
 
-    size_part_2 = len(split_part_2)
-    entropy_part_2 = entropy(split_part_2)
+    # add all the partial entropies of the sub-parts
+    for split in splits:
+        # get the size of the part and it's entropy
+        split_size = len(split)
+        entropy_split = entropy(split)
 
-    # after splitting entropy calculated in weights
-    # the sub-arrays each contribute entropy in relation to their size
-    # thereby, the largest overall purity increase will be achieved
-    entropy_share_p1 = (size_part_1 / size_before) * entropy_part_1
-    entropy_share_p2 = (size_part_2 / size_before) * entropy_part_2
+        # get the entropy contribution of the part, add it to entropy_before
+        relative_size = split_size / size_before
+        entropy_contribution = entropy_split * relative_size
 
-    ig = entropy_before - (entropy_share_p1 + entropy_share_p2)
+        entropy_after += entropy_contribution
+
+    ig = entropy_before - entropy_after
 
     return ig
 
@@ -69,5 +69,6 @@ if __name__ == '__main__':
     test_data_ig_after_p1 = np.array([1] * 7 + [0])
     test_data_ig_after_p2 = np.array([1] * 6 + [0] * 6)
 
-    ig_test = information_gain(test_data_ig_before, test_data_ig_after_p1, test_data_ig_after_p2)
+    ig_test = information_gain(test_data_ig_before,
+                               [test_data_ig_after_p1, test_data_ig_after_p2])
     print(ig_test)
