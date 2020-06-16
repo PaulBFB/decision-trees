@@ -132,6 +132,7 @@ def find_ideal_split(data: pd.DataFrame,
     best_ig = 0
     split_value = 0
     best_splits = None
+    leaf_sizes = 0
 
     for attribute in attributes:
         if np.issubdtype(data[attribute].dtype, np.number):
@@ -148,6 +149,7 @@ def find_ideal_split(data: pd.DataFrame,
                     split_attribute = attribute
                     split_value = i
                     best_splits = parts
+                    leaf_sizes = [i.shape[0] for i in parts]
 
         else:
 #            print(f'{attribute} - non numeric')
@@ -161,11 +163,13 @@ def find_ideal_split(data: pd.DataFrame,
                 split_value = None
                 split_attribute = attribute
                 best_splits = parts
+                leaf_sizes = [i.shape[0] for i in parts]
 
     result = {'value': split_value,
               'split_attribute': split_attribute,
               f'best_{criterion}': best_ig,
-              'splits': best_splits}
+              'splits': best_splits,
+              'leaf_sizes': leaf_sizes}
 
     return result
 
@@ -209,6 +213,9 @@ def split(node, max_depth, min_size, depth):
 
 #    print(node)
     if node['best_information_gain'] == 0:
+        # todo: there's a proclem here, when IG == 0 no value is set... presumably with an empty leaf?
+        # todo: seems to be an issue when min leaf size allows for split down to 0 (which should not happen)
+        # create_leaf(node)
         return
 
     sub_nodes = node['splits']
@@ -218,7 +225,7 @@ def split(node, max_depth, min_size, depth):
 
     if len(sub_nodes) == 1:
         # only one group is left, make a leaf
-        node['left'] = node['right'] = create_leaf(pd.concat(sub_nodes))
+        node[0] = node[1] = create_leaf(pd.concat(sub_nodes))
         return
 
     # check if max_depth is reached
@@ -257,7 +264,10 @@ def predict(row, tree, data):
     if not tree['value']:
         # for a numeric split, go in the direction that lines up with the value chosen
         # helper dict
+#        pprint(tree)
+#        print(traversal_attribute)
         value_dic = {v: k for k, v in enumerate(data[traversal_attribute].unique())}
+#        print(value_dic)
         direction = value_dic[row[traversal_attribute]]
 
     else:
@@ -279,6 +289,7 @@ if __name__ == '__main__':
     df['Age'] = df['Age'].fillna(df['Age'].median())
     df.dropna(subset=['Embarked'], inplace=True)
     df.drop(columns=['Ticket', 'Name', 'Cabin', 'PassengerId'], inplace=True)
+    df.reset_index(inplace=True)
 
 #    print(df.isna().mean().sort_values(ascending=False))
 
@@ -298,7 +309,23 @@ if __name__ == '__main__':
 #    leaf = create_leaf(df)
 #    print(leaf)
 
-    tree = grow_tree(df, 3, 5)
-    pprint(tree)
+    tree = grow_tree(df, 5, 25)
+#    pprint(tree)
 
-    print(predict(df.loc[0], tree, df))
+    print(df.shape)
+#    print(df.head(10))
+#    print(df.loc[100])
+#    print(df.index.to_list())
+#    raise AssertionError
+
+#    print(df.loc[6])
+#    print(predict(df.loc[6], tree, df))
+
+#    df['pred'] = df.apply(lambda x: predict(x, tree, df), axis=0)
+
+    for i in range(df.shape[0]):
+        pprint(tree)
+        print(i)
+        print(df.loc[i])
+        print(predict(df.loc[i], tree, df))
+    print(df.head())
