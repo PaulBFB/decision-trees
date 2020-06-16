@@ -99,18 +99,11 @@ class ID3Tree:
         :return: dictionary of rules
         """
 
-        # if no data is input, use init data
-#        if data is None:
-#            return
-
         # find attribute with most IG to split on
         split_options = self.next_split(data)
 
         # if there are no attributes left to split on --> fin
         if split_options['information_gain'] == 0:
-            # error - this leads to an edge case in 3 different ways
-            # example: test data index 13, no more attributes to split on but 50/50 impure data
-            # todo: implement majority-voting in leaves
             # todo: change recursion from looking forward (i.e. on next_split)
             # todo: implement tie breakers as mentioned here:
             # https://iopscience.iop.org/1748-3190/12/1/011004/media/bbaa416dsd.pdf
@@ -126,11 +119,14 @@ class ID3Tree:
             print(data.head())
             pseudo_rule = {pseudo_column: {pseudo_value: pseudo_target}}
             print(pseudo_rule)
-            return pseudo_rule
+            # error - this leads to an edge case in 3 different ways
+            # example: test data index 13, no more attributes to split on but 50/50 impure data
+            # note - test data in 13 still produces the error - other edge cases are solved (check with dummy text)
+            return 'THIS IS THE CASE WHERE IG == 0' # pseudo_rule
 
         elif split_options['attribute'] is None:
             # todo: implement majority voting here
-            return
+            return 'THIS IS THE CASE WHERE NO ATTRIBUTE IS LEFT'
 
         split_attribute = split_options['attribute']
 
@@ -157,6 +153,56 @@ class ID3Tree:
                                                                   depth=depth+1)
 
         return rules
+
+    def split_new(self,
+                  data: pd.DataFrame = None,
+                  max_depth: int = 3,
+                  depth: int = 0,
+                  existing_rules: dict = None,
+                  path: str = None):
+
+        next_split = self.next_split(data)
+
+        if existing_rules is None:
+            existing_rules = dict()
+
+        # exit condition 1 - pure value
+        if data[self.target_column].nunique() == 1:
+            return data.loc[0, self.target_column]
+
+        # exit condition 2 - no more information can be gained
+        elif next_split['information_gain'] == 0:
+            # break the tie by picking the first value
+            return data.loc[0, self.target_column]
+
+        # exit condition 3 - no more attributes are left
+        # does this case exist? no more IG, no attribute, but not pure?
+        elif next_split['attribute'] is None:
+            return 'WARNING CASE!!!'
+
+        # exit condition 4 - max depth has been reached, but leaves are not pure
+        elif depth == max_depth:
+            # majority vote
+            return data[self.target_column].mode()[0]
+
+        # recursion - split further down
+        else:
+            split_attribute = next_split['attribute']
+            possible_outcomes = data[split_attribute].unique()
+
+            for outcome in possible_outcomes:
+                # get all possible outcomes of the attribute
+                subset = self.filter_data(split_attribute, outcome, data)
+            #    print(subset.shape)
+                existing_rules[split_attribute] = dict()
+#                existing_rules[split_attribute][outcome] = self.split_new(data=subset,
+#                                                                          depth=depth+1,
+#                                                                          existing_rules=existing_rules)
+                new_rules = self.split_new(data=subset,
+                                           depth=depth+1,
+                                           existing_rules=existing_rules)
+                existing_rules[split_attribute][outcome] = new_rules
+            return existing_rules
 
     def fit(self):
         """
@@ -191,8 +237,8 @@ if __name__ == '__main__':
 #    print(t.next_split())
 #    print(t.data.head())
 #    t.find_rules()
-    t.fit()
-    pprint(t.rules_)
+#    t.fit()
+#    pprint(t.rules_)
 #    print(t.next_split(t.filter_data('forecast', 'rain')))
 #    d = t.filter_data('forecast', 'sunny')
 #    print(d)
@@ -235,5 +281,9 @@ if __name__ == '__main__':
 
 #    test_data['predictions'] = test_data.apply(lambda x: get_prediction(rule_dict=t.rules_, row=x), axis=0)
 
-    print(test_data.loc[13])
-    print(get_prediction(t.rules_, test_data.loc[13]))
+#    print(test_data.loc[13])
+#    print(get_prediction(t.rules_, test_data.loc[13]))
+
+    rules_test = t.split_new(test_data, max_depth=3)
+    pprint(rules_test)
+#    pprint(rules_test['forecast']['sunny'])
