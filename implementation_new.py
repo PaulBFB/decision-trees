@@ -135,7 +135,7 @@ def find_ideal_split(data: pd.DataFrame,
 
     for attribute in attributes:
         if np.issubdtype(data[attribute].dtype, np.number):
-            print(f'{attribute} - numeric')
+#            print(f'{attribute} - numeric')
 
             for i in data[attribute].unique():
 
@@ -150,7 +150,7 @@ def find_ideal_split(data: pd.DataFrame,
                     best_splits = parts
 
         else:
-            print(f'{attribute} - non numeric')
+#            print(f'{attribute} - non numeric')
 
             parts = split_non_numeric(attribute=attribute, data=data)
 #            print(parts)
@@ -248,6 +248,29 @@ def grow_tree(data, max_depth, min_leaf_size):
     return root
 
 
+def predict(row, tree, data):
+
+    # check if value is None --> meaning it's a numeric attr
+    # decide which "direction" to go
+    traversal_attribute = tree['split_attribute']
+
+    if not tree['value']:
+        # for a numeric split, go in the direction that lines up with the value chosen
+        # helper dict
+        value_dic = {v: k for k, v in enumerate(data[traversal_attribute].unique())}
+        direction = value_dic[row[traversal_attribute]]
+
+    else:
+        # for numeric values, go 0 for below, 1 for above
+        direction = 0 if tree['value'] < row[traversal_attribute] else 1
+
+    # check if we're at a leaf, if not recursion
+    if isinstance(tree[direction], dict):
+        return predict(row, tree[direction], data)
+    else:
+        return tree[direction]
+
+
 if __name__ == '__main__':
     df = load_data('./data/titanic.csv')
 #    print(df.dtypes)
@@ -272,8 +295,10 @@ if __name__ == '__main__':
     best_initial = find_ideal_split(df)
 #    print(best_initial)
 
-    leaf = create_leaf(df)
-    print(leaf)
+#    leaf = create_leaf(df)
+#    print(leaf)
 
     tree = grow_tree(df, 3, 5)
     pprint(tree)
+
+    print(predict(df.loc[0], tree, df))
