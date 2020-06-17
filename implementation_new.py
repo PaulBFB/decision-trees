@@ -18,6 +18,10 @@ def entropy(data: np.array) -> float:
 
     assert data.ndim == 1, f"input data must be 1 dimensional array - input has {data.ndim}"
 
+    # ensure that n empty array can't be an "optimal" split
+    if data.size == 0:
+        return np.inf
+
     # for classes of 1 and 0 get probabilities
     probability_ones = np.sum(data) / len(data)
     probability_zeros = 1 - probability_ones
@@ -62,19 +66,37 @@ def split_numeric(attribute: str,
     split_below = data.loc[data[attribute] < value]
     split_above = data.loc[data[attribute] >= value]
 
+    # discard attributes that are 'pure' - categorical attributes, essentially such as class
+    if split_above[attribute].nunique() == 1:
+        split_above = split_above.drop(columns=[attribute])
+
+    if split_below[attribute].nunique() == 1:
+        split_below = split_below.drop(columns=[attribute])
+
     return split_above, split_below
 
 
 def split_non_numeric(attribute: str,
                       data: pd.DataFrame) -> tuple:
+    """
+    splits non-numeric data
+    this results in MULTI-WAY splitting
+    the splits do NOT contain the column that was split on (since after the split it is "pure" unlike numeric cols
 
-    assert not np.issubdtype(data[attribute].dtype, np.number), 'selected can\'t be numeric'
+    :param attribute: attribute that the data will be split on
+    :param data: dataframe to split
+    :return: tuple of split data
+    """
+    assert not np.issubdtype(data[attribute].dtype, np.number), 'selected attribute can\'t be numeric'
     assert not any(df[attribute].isna()), 'split column cannot contain blank values, please fill before using split'
 
     outcomes = data[attribute].unique()
-#    print(len(outcomes))
+    # filter for each possible outcome of the data
+    parts = tuple(data.loc[data[attribute] == outcome] for outcome in outcomes)
+    # for each part, discard the now-pure split column since it is useless
+    parts = tuple(part.drop(columns=[attribute]) for part in parts)
 
-    return tuple(data.loc[data[attribute] == outcome] for outcome in outcomes)
+    return parts
 
 
 def information_gain(before_split: np.array,
@@ -85,6 +107,7 @@ def information_gain(before_split: np.array,
 
     :param before_split: array, 1 and 0
     :param splits: list of arrays, sub-arrays of before_splits
+    :param target_column: str, dependent variable
     :return: float
     """
 
@@ -125,7 +148,7 @@ def find_ideal_split(data: pd.DataFrame,
 
     attributes = filter(lambda x: x != t_col, data.columns)
     # apparently, with enough tree depth no attributes are left
-    # shouldn't happen, solve with assert / split depth < attribute number
+    # shouldn't happen, solved with assert / split depth < attribute number
 
     if criterion == 'gini':
         pass
@@ -137,17 +160,17 @@ def find_ideal_split(data: pd.DataFrame,
     leaf_sizes = 0
     numeric_split = None
 
+    # first check if split on numeric / non-numeric
     for attribute in attributes:
         if np.issubdtype(data[attribute].dtype, np.number):
-#            print(f'{attribute} - numeric')
 
+            # "inner loop" - split on each numeric value and test if information gain is better
             for i in data[attribute].unique():
-
                 parts = split_numeric(attribute=attribute, value=i, data=data)
                 ig = information_gain(before_split=data, splits=parts)
 
+                # if a better IG is found, record it
                 if ig > best_ig:
-
                     best_ig = ig
                     split_attribute = attribute
                     split_value = i
@@ -156,10 +179,8 @@ def find_ideal_split(data: pd.DataFrame,
                     leaf_sizes = [i.shape[0] for i in parts]
 
         else:
-#            print(f'{attribute} - non numeric')
-
+            # non-numeric split - this supports multiway-split
             parts = split_non_numeric(attribute=attribute, data=data)
-#            print(parts)
             ig = information_gain(before_split=data, splits=parts)
 
             if ig > best_ig:
@@ -170,6 +191,7 @@ def find_ideal_split(data: pd.DataFrame,
                 best_splits = parts
                 leaf_sizes = [i.shape[0] for i in parts]
 
+    # hand over a dict for convenience
     result = {'value': split_value,
               'split_attribute': split_attribute,
               f'best_{criterion}': best_ig,
@@ -208,35 +230,54 @@ def gini_index(before_split: pd.DataFrame,
 
 
 def create_leaf(part: pd.DataFrame,
-                target_column: str = t_col):
+                target_column: str = t_col) -> int:
+    """
+    create a terminal node / leaf
+    :param part: data in the leaf
+    :param target_column: column that is checked vor majority voting
+    :return: int
+    """
 
+    # return the most frequent value (always 0/1) from the data to enter into the tree-dict
     most_frequent = part[target_column].mode()[0]
 
     return most_frequent
 
 
-def split(node, max_depth, min_size, depth):
+def split(node: dict,
+          max_depth: int,
+          min_size: int,
+          depth: int = 1,
+          target_column: str = t_col) -> None:
+    """
+    takes in a dict and modifies (recursively splits) it
+    until max depth is reached or the sub-dicts (child nodes) are pure
+    the dict is modified in place
 
-#    print(node)
-    if node['best_information_gain'] == 0:
+    :param node: initial dict
+    :param max_depth: maximum recursion depth (if nodes are not pure yet, majority vote (see create_leaf)
+    :param min_size: minimum leaf-size
+    :param depth: current depth, used to track recursion limit
+    :param target_column:
+    :return: None
+    """
+
+#    if node['best_information_gain'] == 0:
+#        print(node)
         # todo: there's a problem here, when IG == 0 no value is set... presumably with an empty leaf?
-        # todo: seems to be an issue when min leaf size allows for split down to 0 (which should not happen)
-        # create_leaf(node)
-        return
+#        create_leaf(node)
+#        return
 
+    # get the child splits out of the node-dict
     sub_nodes = node['splits']
+    # records what the child-nodes were split on
     split_attribute = node['split_attribute']
+    # bool - if the split was numeric or not - if False this may be a multiway-split
     node_split_numeric = node['numeric_split']
-    for i in sub_nodes:
-        print(f'current tree depth: {depth}')
-        print(f'split attribute {split_attribute}')
-        print(i.head())
-        print(i.shape)
-        print(i[split_attribute])
-        print(node_split_numeric)
-        print('-----------------------------------------')
+    # this is used for iterating over the child nodes
     number_nodes = len(sub_nodes)
 
+    # free up memory from the original dict (otherwise data is duplicated while this runs
     del (node['splits'])
 
     if number_nodes == 1:
@@ -248,26 +289,48 @@ def split(node, max_depth, min_size, depth):
     if depth >= max_depth:
         # create a leaf for each group
         for i in range(number_nodes):
+            # concatenate all the nodes into one, majority vote
             node[i] = create_leaf(sub_nodes[i])
         return
 
     # process all child nodes
     for i in range(number_nodes):
+        # todo: logically create the dict key from i --> if numeric split: greater/smaller, else plain values
         child_node = sub_nodes[i]
 
         # check for minimum size
         if child_node.shape[0] <= min_size:
             node[i] = create_leaf(child_node)
 
+        # check for pure node - if the node is pure, make it terminal
+        elif child_node[target_column].nunique() == 1:
+            node[i] = create_leaf(child_node)
+
+        # if no exit case is reached, go one level lower
         else:
             node[i] = find_ideal_split(child_node)
             split(node[i], max_depth, min_size, depth=depth+1)
 
 
-def grow_tree(data, max_depth, min_leaf_size):
-    assert max_depth < data.shape[1], 'max depth of the tree must be less than attributes of the data '
+def grow_tree(data: pd.DataFrame,
+              max_depth: int = 5,
+              min_leaf_size: int = 10,
+              target_column: str = t_col) -> dict:
+    """
+    take a dataframe with target, create the first split and then apply recursive split to it
 
+    :param data: pd.DataFrame
+    :param max_depth: maximum depth of the tree
+    :param min_leaf_size: minimum samples per leaf
+    :return: dictionary
+    """
+
+    assert max_depth < (data.shape[1] - 1), 'max depth of the tree must be less than attributes of the data '
+
+    # start the tree off with the first split
     root = find_ideal_split(data)
+
+    # recursion, see above
     split(root, max_depth, min_leaf_size, 1)
 
     return root
@@ -326,9 +389,16 @@ if __name__ == '__main__':
 
 #    leaf = create_leaf(df)
 #    print(leaf)
+    print(df.shape)
 
     tree = grow_tree(df, 5, 10)
-#    pprint(tree)
+    pprint(tree)
+
+    print(df.dtypes)
+    print(df['SibSp'].unique())
+
+    print(df.loc[(df['Sex'] == 'male') & (df['Age'] >= 35)].shape)
+    print(df.loc[(df['Sex'] == 'male') & (df['Age'] >= 35)])
 
 #    print(df.shape)
 #    print(df.head(10))
@@ -341,9 +411,16 @@ if __name__ == '__main__':
 
 #    df['pred'] = df.apply(lambda x: predict(x, tree, df), axis=0)
 
-#    for i in range(df.shape[0]):
+    accurate = np.array([])
+    for i in range(df.shape[0]):
 #        pprint(tree)
 #        print(i)
 #        print(df.loc[i])
-#        print(predict(df.loc[i], tree, df))
+        prediction = predict(df.loc[i], tree, df)
+#        print(prediction)
+        correct = prediction == df.loc[i, t_col]
+        accurate = np.append(accurate, correct)
+
 #    print(df.head())
+
+    print(f'tree accuracy: {accurate.mean()}')
