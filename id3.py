@@ -56,10 +56,6 @@ class ID3Tree:
         check information gain for all columns that are left, get the largest, return with name and IG
         :return: dict
         """
-
-        if data is None:
-            data = self.data
-
         split_attribute = {'attribute': None,
                            'information_gain': 0}
         for attribute in filter(lambda x: x != self.target_column, data.columns):
@@ -91,7 +87,7 @@ class ID3Tree:
 
     def find_rules(self,
                    data: pd.DataFrame = None,
-                   depth: int = 0):
+                   depth: int = 0) -> dict:
         """
         recursively create rules for classification
         :param data: in recursion, uses a subset of the data
@@ -104,29 +100,31 @@ class ID3Tree:
 
         # if there are no attributes left to split on --> fin
         if split_options['information_gain'] == 0:
-            # todo: change recursion from looking forward (i.e. on next_split)
-            # todo: implement tie breakers as mentioned here:
-            # https://iopscience.iop.org/1748-3190/12/1/011004/media/bbaa416dsd.pdf
-#            print(data.loc[0, 'go_out'])
-#            print(data)
-#            print(data.columns)
             # simply grab the first column
             pseudo_column = data.columns.to_list()[0]
-            print(pseudo_column)
             # associate with first value
             pseudo_value = data.loc[0, pseudo_column]
             pseudo_target = data.loc[0, self.target_column]
-            print(data.head())
             pseudo_rule = {pseudo_column: {pseudo_value: pseudo_target}}
-            print(pseudo_rule)
+
+            p_rules = {i: data.loc[0, i] for i in filter(lambda x: x != self.target_column, data.columns)}
+
+            n_rules = dict()
+            for k, v in p_rules.items():
+                n_rules[k] = {v: pseudo_target}
+#            print(n_rules)
+#            print(pseudo_rule)
             # error - this leads to an edge case in 3 different ways
             # example: test data index 13, no more attributes to split on but 50/50 impure data
             # note - test data in 13 still produces the error - other edge cases are solved (check with dummy text)
-            return 'THIS IS THE CASE WHERE IG == 0' # pseudo_rule
+#            print(data)
+#            print('exit case reached -- NO MORE IG')
+#            print(n_rules)
+            return n_rules # data.loc[0, self.target_column]
 
         elif split_options['attribute'] is None:
-            # todo: implement majority voting here
-            return 'THIS IS THE CASE WHERE NO ATTRIBUTE IS LEFT'
+            print('exit case reached -- no more attributes left ')
+            return data[self.target_column].mode()[0]
 
         split_attribute = split_options['attribute']
 
@@ -141,16 +139,19 @@ class ID3Tree:
         for outcome in outcomes:
             filtered = self.filter_data(split_attribute, outcome, data)
 #            print(filtered.head())
-            values = filtered[self.target_column].unique()
+            number_outcomes = filtered[self.target_column].nunique()
 
             # if only one outcome remains (target column is pure) create a rule
-            if len(values) == 1:
-                rules[split_attribute][outcome] = values[0]
+            if number_outcomes == 1:
+                rules[split_attribute][outcome] = filtered.loc[0, self.target_column]
 
             # if outcome is not pure yet - recursion
-            elif self.max_depth is None or depth < self.max_depth:
+            elif self.max_depth is None or depth <= self.max_depth:
                 rules[split_attribute][outcome] = self.find_rules(filtered,
                                                                   depth=depth+1)
+
+#            else:
+#                return filtered[self.target_column].mode()[0]
 
         return rules
 
@@ -191,17 +192,19 @@ class ID3Tree:
             possible_outcomes = data[split_attribute].unique()
 
             for outcome in possible_outcomes:
+                print(depth, split_attribute, outcome)
                 # get all possible outcomes of the attribute
                 subset = self.filter_data(split_attribute, outcome, data)
             #    print(subset.shape)
                 existing_rules[split_attribute] = dict()
+#                existing_rules[split_attribute] = existing_rules.get(split_attribute, dict())
 #                existing_rules[split_attribute][outcome] = self.split_new(data=subset,
 #                                                                          depth=depth+1,
 #                                                                          existing_rules=existing_rules)
-                new_rules = self.split_new(data=subset,
-                                           depth=depth+1,
-                                           existing_rules=existing_rules)
-                existing_rules[split_attribute][outcome] = new_rules
+                existing_rules[split_attribute][outcome] = existing_rules[split_attribute].get(outcome, self.split_new(data=subset,
+                                                                                                                       depth=depth+1,
+                                                                                                                       existing_rules=existing_rules))
+#                existing_rules[split_attribute][outcome] = existing_rules
             return existing_rules
 
     def fit(self):
@@ -227,63 +230,37 @@ class ID3Tree:
 
 
 if __name__ == '__main__':
-    with open('./weather_decision.csv', mode='r') as file:
+    with open('data/weather_decision.csv', mode='r') as file:
         test_data = pd.read_csv(file)
     t = ID3Tree(data=test_data,
                 target_column='go_out',
-                max_depth=None
-                )
+                max_depth=None)
 
-#    print(t.next_split())
-#    print(t.data.head())
-#    t.find_rules()
-#    t.fit()
-#    pprint(t.rules_)
-#    print(t.next_split(t.filter_data('forecast', 'rain')))
-#    d = t.filter_data('forecast', 'sunny')
-#    print(d)
-#    print(t.next_split(data=d))
-
-#    print(test_data.loc[1])
-
-#    print(type(test_data.loc[1]))
-#    print(t.rules_.keys())
-
-#    first_key = list(t.rules_.keys())[0]
-#    first_value = t.rules_[first_key]
-
-#    print(test_data.loc[1, first_key])
-#    print(first_value)
-
-#    second_key = test_data.loc[1, first_key]
-#    print(second_key)
-
-#    print(t.rules_[first_key][second_key])
-
-#    rule_dict = t.rules_
 
     def get_prediction(rule_dict,
                        row: pd.Series):
 
-        if isinstance(rule_dict, dict):
-            column = list(rule_dict.keys())[0]
-
-#            print(column)
-
-#            print(rule_dict[column])
-            rule_dict = rule_dict[column][row[column]]
-
-            return get_prediction(rule_dict, row)
-
-        else:
+        if not isinstance(rule_dict, dict):
             return rule_dict
 
+        else:
+            column = list(rule_dict.keys())[0]
+            rule_dict = rule_dict[column][row[column]]
+            return get_prediction(rule_dict, row)
 
-#    test_data['predictions'] = test_data.apply(lambda x: get_prediction(rule_dict=t.rules_, row=x), axis=0)
 
-#    print(test_data.loc[13])
-#    print(get_prediction(t.rules_, test_data.loc[13]))
+#    rules_test = t.split_new(test_data, max_depth=5)
+#    pprint(rules_test)
 
-    rules_test = t.split_new(test_data, max_depth=3)
-    pprint(rules_test)
-#    pprint(rules_test['forecast']['sunny'])
+    t.fit()
+    pprint(t.rules_)
+
+    print(test_data.loc[8])
+    prediction = get_prediction(t.rules_, test_data.loc[8])
+    print(prediction)
+
+#    for i in range(test_data.shape[0]):
+#        print(i)
+#        print(test_data.loc[i])
+#        prediction = get_prediction(t.rules_, test_data.loc[i])
+#        print(prediction)
