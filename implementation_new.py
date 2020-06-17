@@ -124,6 +124,8 @@ def find_ideal_split(data: pd.DataFrame,
     """
 
     attributes = filter(lambda x: x != t_col, data.columns)
+    # apparently, with enough tree depth no attributes are left
+    # shouldn't happen, solve with assert / split depth < attribute number
 
     if criterion == 'gini':
         pass
@@ -133,6 +135,7 @@ def find_ideal_split(data: pd.DataFrame,
     split_value = 0
     best_splits = None
     leaf_sizes = 0
+    numeric_split = None
 
     for attribute in attributes:
         if np.issubdtype(data[attribute].dtype, np.number):
@@ -148,6 +151,7 @@ def find_ideal_split(data: pd.DataFrame,
                     best_ig = ig
                     split_attribute = attribute
                     split_value = i
+                    numeric_split = True
                     best_splits = parts
                     leaf_sizes = [i.shape[0] for i in parts]
 
@@ -162,6 +166,7 @@ def find_ideal_split(data: pd.DataFrame,
                 best_ig = ig
                 split_value = None
                 split_attribute = attribute
+                numeric_split = False
                 best_splits = parts
                 leaf_sizes = [i.shape[0] for i in parts]
 
@@ -169,6 +174,7 @@ def find_ideal_split(data: pd.DataFrame,
               'split_attribute': split_attribute,
               f'best_{criterion}': best_ig,
               'splits': best_splits,
+              'numeric_split': numeric_split,
               'leaf_sizes': leaf_sizes}
 
     return result
@@ -213,17 +219,27 @@ def split(node, max_depth, min_size, depth):
 
 #    print(node)
     if node['best_information_gain'] == 0:
-        # todo: there's a proclem here, when IG == 0 no value is set... presumably with an empty leaf?
+        # todo: there's a problem here, when IG == 0 no value is set... presumably with an empty leaf?
         # todo: seems to be an issue when min leaf size allows for split down to 0 (which should not happen)
         # create_leaf(node)
         return
 
     sub_nodes = node['splits']
+    split_attribute = node['split_attribute']
+    node_split_numeric = node['numeric_split']
+    for i in sub_nodes:
+        print(f'current tree depth: {depth}')
+        print(f'split attribute {split_attribute}')
+        print(i.head())
+        print(i.shape)
+        print(i[split_attribute])
+        print(node_split_numeric)
+        print('-----------------------------------------')
     number_nodes = len(sub_nodes)
 
     del (node['splits'])
 
-    if len(sub_nodes) == 1:
+    if number_nodes == 1:
         # only one group is left, make a leaf
         node[0] = node[1] = create_leaf(pd.concat(sub_nodes))
         return
@@ -249,6 +265,8 @@ def split(node, max_depth, min_size, depth):
 
 
 def grow_tree(data, max_depth, min_leaf_size):
+    assert max_depth < data.shape[1], 'max depth of the tree must be less than attributes of the data '
+
     root = find_ideal_split(data)
     split(root, max_depth, min_leaf_size, 1)
 
@@ -271,7 +289,7 @@ def predict(row, tree, data):
         direction = value_dic[row[traversal_attribute]]
 
     else:
-        # for numeric values, go 0 for below, 1 for above
+        # for numeric values, go 0 for below, 1 for above (see split_numeric)
         direction = 0 if tree['value'] < row[traversal_attribute] else 1
 
     # check if we're at a leaf, if not recursion
@@ -309,10 +327,10 @@ if __name__ == '__main__':
 #    leaf = create_leaf(df)
 #    print(leaf)
 
-    tree = grow_tree(df, 5, 25)
+    tree = grow_tree(df, 5, 10)
 #    pprint(tree)
 
-    print(df.shape)
+#    print(df.shape)
 #    print(df.head(10))
 #    print(df.loc[100])
 #    print(df.index.to_list())
@@ -323,9 +341,9 @@ if __name__ == '__main__':
 
 #    df['pred'] = df.apply(lambda x: predict(x, tree, df), axis=0)
 
-    for i in range(df.shape[0]):
-        pprint(tree)
-        print(i)
-        print(df.loc[i])
-        print(predict(df.loc[i], tree, df))
-    print(df.head())
+#    for i in range(df.shape[0]):
+#        pprint(tree)
+#        print(i)
+#        print(df.loc[i])
+#        print(predict(df.loc[i], tree, df))
+#    print(df.head())
