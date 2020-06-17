@@ -2,7 +2,7 @@ import pandas as pd
 from pprint import pprint
 
 
-with open('/home/paul/PycharmProjects/decision-trees/weather_decision.csv', mode='r') as file:
+with open('/data/weather_decision.csv', mode='r') as file:
     test_data = pd.read_csv(file)
 
 
@@ -15,7 +15,7 @@ def purify(data,
 
     data_pure = all(data[target_column] == 'yes') or all(data[target_column] == 'no')
     print(data_pure)
-#    all_paths_taken: [f'' for i in filter(lambda x: x != target_column, data.columns)]
+    # all_paths_taken: [f'' for i in filter(lambda x: x != target_column, data.columns)]
     # if data is already pure, do nothing
     if data_pure:
         print('pure')
@@ -58,3 +58,4 @@ print(test_data.head(20))
 t = purify(test_data, 'go_out')
 #print(t)
 
+print(test_data.keys()[-1])
