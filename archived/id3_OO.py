@@ -230,7 +230,7 @@ class ID3Tree:
 
 
 if __name__ == '__main__':
-    with open('data/weather_decision.csv', mode='r') as file:
+    with open('../data/weather_decision.csv', mode='r') as file:
         test_data = pd.read_csv(file)
     t = ID3Tree(data=test_data,
                 target_column='go_out',
