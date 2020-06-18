@@ -262,12 +262,6 @@ def split(node: dict,
     :return: None
     """
 
-#    if node['best_information_gain'] == 0:
-#        print(node)
-        # todo: there's a problem here, when IG == 0 no value is set... presumably with an empty leaf?
-#        create_leaf(node)
-#        return
-
     # get the child splits out of the node-dict
     sub_nodes = node['splits']
     # records what the child-nodes were split on
@@ -336,7 +330,16 @@ def grow_tree(data: pd.DataFrame,
     return root
 
 
-def predict(row, tree, data):
+def predict_row(row: pd.DataFrame,
+                tree: dict,
+                data: pd.DataFrame) -> int:
+    """
+    create a prediction for a single row in the dataframe
+    :param row: dataframe row
+    :param tree: decision tree dict
+    :param data: complete dataframe (to be replaced)
+    :return: int 0/1
+    """
 
     # check if value is None --> meaning it's a numeric attr
     # decide which "direction" to go
@@ -345,10 +348,9 @@ def predict(row, tree, data):
     if not tree['value']:
         # for a numeric split, go in the direction that lines up with the value chosen
         # helper dict
-#        pprint(tree)
-#        print(traversal_attribute)
+        # todo: replace condition by numeric_split
+        # todo: replace with direction by attribute value
         value_dic = {v: k for k, v in enumerate(data[traversal_attribute].unique())}
-#        print(value_dic)
         direction = value_dic[row[traversal_attribute]]
 
     else:
@@ -357,70 +359,82 @@ def predict(row, tree, data):
 
     # check if we're at a leaf, if not recursion
     if isinstance(tree[direction], dict):
-        return predict(row, tree[direction], data)
+        return predict_row(row, tree[direction], data)
     else:
         return tree[direction]
 
 
-if __name__ == '__main__':
-    df = load_data('./data/titanic.csv')
-#    print(df.dtypes)
+def predict(data: pd.DataFrame,
+            tree: dict) -> pd.Series:
+    """
+    convenience function, apply prediction to the df and return a series
+    :param data: dataframe to predict on (format must be identical to training data)
+    :param tree: decision tree dict
+    :return: series of 0/1
+    """
 
-#    df = df.apply(lambda x: x.fillna(x.median()) if np.issubdtype(x.dtype, np.number), axis=0)
+    predictions = data.apply(lambda x: predict_row(x, tree=tree, data=data), axis=1)
+
+    return predictions
+
+
+def evaluate_tree(data: pd.DataFrame,
+                  tree: dict,
+                  metric: str = 'accuracy',
+                  target_column: str = t_col) -> dict:
+    """
+    evaluate tree on a metric
+    :param data: data to evaluate on (must be same format as training data)
+    :param tree: decision tree dict
+    :param metric: str name of metric
+    :param target_column: str name of target column
+    :return: dictionary
+    """
+
+    assert metric.lower() in ('accuracy', 'specificity', 'recall'), 'metric name must be one of "specificity", "recall" or "accuracy"'
+
+    ground_truth = np.array(data[target_column])
+    prediction = np.array(predict(data, tree))
+
+    if metric == 'accuracy':
+        # basic accuracy formula
+        value = np.mean(prediction == ground_truth)
+
+    elif metric == 'recall':
+        # how many of the actual positives did we catch
+        true_positives = (prediction == ground_truth) * (prediction == 1)
+        false_negatives = (prediction == 0) * (ground_truth == 1)
+        value = np.sum(true_positives) / (np.sum(true_positives) + np.sum(false_negatives))
+
+    else:
+        # how many of our positives are really positives
+        true_negatives = (prediction == ground_truth) * (prediction == 0)
+        false_negatives = (prediction == 0) * (ground_truth == 1)
+        value = np.sum(true_negatives) / (np.sum(true_negatives) + np.sum(false_negatives))
+
+    result = {'metric': metric,
+              'value': value}
+
+    return result
+
+
+if __name__ == '__main__':
+
+    df = load_data('./data/titanic.csv')
+
+    # preprocess
     df['Age'] = df['Age'].fillna(df['Age'].median())
     df.dropna(subset=['Embarked'], inplace=True)
     df.drop(columns=['Ticket', 'Name', 'Cabin', 'PassengerId'], inplace=True)
+
+    # in order to iterate over rows by index (fill gaps)
     df.reset_index(inplace=True)
 
-#    print(df.isna().mean().sort_values(ascending=False))
-
-#    print(information_gain(df, split_numeric('Age', value=25, data=df)))
-#    print(gini_index(df, split_numeric('Age', value=25, data=df), [False, True]))
-
-#    find_ideal_split(df)
-#    for i in df.columns:
-        #if df[i].dtype in (np.int64, np.float64):
-         #   continue
-        #print(i)
-        #split_non_numeric(i, df)
-
+    # start off with the initial split and grow the tree
     best_initial = find_ideal_split(df)
-#    print(best_initial)
-
-#    leaf = create_leaf(df)
-#    print(leaf)
-    print(df.shape)
-
     tree = grow_tree(df, 5, 10)
-    pprint(tree)
+#    pprint(tree)
 
-    print(df.dtypes)
-    print(df['SibSp'].unique())
-
-    print(df.loc[(df['Sex'] == 'male') & (df['Age'] >= 35)].shape)
-    print(df.loc[(df['Sex'] == 'male') & (df['Age'] >= 35)])
-
-#    print(df.shape)
-#    print(df.head(10))
-#    print(df.loc[100])
-#    print(df.index.to_list())
-#    raise AssertionError
-
-#    print(df.loc[6])
-#    print(predict(df.loc[6], tree, df))
-
-#    df['pred'] = df.apply(lambda x: predict(x, tree, df), axis=0)
-
-    accurate = np.array([])
-    for i in range(df.shape[0]):
-#        pprint(tree)
-#        print(i)
-#        print(df.loc[i])
-        prediction = predict(df.loc[i], tree, df)
-#        print(prediction)
-        correct = prediction == df.loc[i, t_col]
-        accurate = np.append(accurate, correct)
-
-#    print(df.head())
-
-    print(f'tree accuracy: {accurate.mean()}')
+    for i in ('specificity', 'accuracy', 'recall'):
+        res = evaluate_tree(df, tree, metric=i)
+        print(f'tree {res["metric"]}: {res["value"]}')
