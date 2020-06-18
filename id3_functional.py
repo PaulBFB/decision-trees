@@ -42,7 +42,7 @@ def load_data(path: str) -> pd.DataFrame:
     :return:
     """
     with open(path, mode='r') as file:
-        data = pd.read_csv(file) #, dtype={'Survived': bool})
+        data = pd.read_csv(file)
 
     return data
 
@@ -51,13 +51,12 @@ def split_numeric(attribute: str,
                   value: float,
                   data: pd.DataFrame) -> tuple:
     """
-    right_heavy split of numeric attributre  left -> < value, right >= value
+    right_heavy split of numeric attribute  left -> < value, right >= value
 
-    :param attribute:
-    :param value:
-    :param data:
-    :param target_column:
-    :return:
+    :param attribute: attribute to split on
+    :param value: value to split by
+    :param data: dataframe to split
+    :return: tuple of resulting splits
     """
 
     assert np.issubdtype(data[attribute].dtype, np.number), 'selected column must be numeric'
@@ -111,7 +110,7 @@ def information_gain(before_split: np.array,
     :return: float
     """
 
-    assert len(before_split) == sum([len(split) for split in splits]), f"splits must add up to length of original{len(before_split)}/{sum([len(i) for i in splits])}"
+    assert len(before_split) == sum([len(part) for part in splits]), f"splits must add up to length of original{len(before_split)}/{sum([len(j) for j in splits])}"
 
     # get parameters all arrays - size, entropy
     # only for convenience / readability
@@ -121,13 +120,13 @@ def information_gain(before_split: np.array,
     entropy_after = 0
 
     # add all the partial entropies of the sub-parts
-    for split in splits:
+    for part in splits:
         # get the size of the part and it's entropy
-        split_size = len(split)
-        entropy_split = entropy(split[target_column])
+        part_size = len(part)
+        entropy_split = entropy(part[target_column])
 
         # get the entropy contribution of the part, add it to entropy_before
-        relative_size = split_size / size_before
+        relative_size = part_size / size_before
         entropy_contribution = entropy_split * relative_size
 
         entropy_after += entropy_contribution
@@ -165,21 +164,21 @@ def find_ideal_split(data: pd.DataFrame,
         if np.issubdtype(data[attribute].dtype, np.number):
 
             # "inner loop" - split on each numeric value and test if information gain is better
-            for i in data[attribute].unique():
-                parts = split_numeric(attribute=attribute, value=i, data=data)
+            for outcome in data[attribute].unique():
+                parts = split_numeric(attribute=attribute, value=outcome, data=data)
                 ig = information_gain(before_split=data, splits=parts)
 
                 # if a better IG is found, record it
                 if ig > best_ig:
                     best_ig = ig
                     split_attribute = attribute
-                    split_value = i
+                    split_value = outcome
                     numeric_split = True
                     best_splits = parts
-                    leaf_sizes = [i.shape[0] for i in parts]
+                    leaf_sizes = [part.shape[0] for part in parts]
 
         else:
-            # non-numeric split - this supports multiway-split
+            # non-numeric split - this supports multi-way-split
             parts = split_non_numeric(attribute=attribute, data=data)
             ig = information_gain(before_split=data, splits=parts)
 
@@ -189,7 +188,7 @@ def find_ideal_split(data: pd.DataFrame,
                 split_attribute = attribute
                 numeric_split = False
                 best_splits = parts
-                leaf_sizes = [i.shape[0] for i in parts]
+                leaf_sizes = [part.shape[0] for part in parts]
 
     # hand over a dict for convenience
     result = {'value': split_value,
@@ -211,8 +210,8 @@ def gini_index(before_split: pd.DataFrame,
 
     gini = 0
 
-    for split in splits:
-        split_size = len(split) / total_elements
+    for split_data in splits:
+        split_size = len(split_data) / total_elements
 
         if split_size == 0:
             continue
@@ -221,7 +220,7 @@ def gini_index(before_split: pd.DataFrame,
 
         for outcome in outcomes:
             # get fraction of cases where target == outcome
-            p = np.mean(split[split[target_column] == outcome])
+            p = np.mean(split_data[split_data[target_column] == outcome])
             score += p ** 2
 
         gini += (1.0 - score) * (split_size / total_elements)
@@ -308,8 +307,7 @@ def split(node: dict,
 
 def grow_tree(data: pd.DataFrame,
               max_depth: int = 5,
-              min_leaf_size: int = 10,
-              target_column: str = t_col) -> dict:
+              min_leaf_size: int = 10) -> dict:
     """
     take a dataframe with target, create the first split and then apply recursive split to it
 
@@ -432,9 +430,11 @@ if __name__ == '__main__':
 
     # start off with the initial split and grow the tree
     best_initial = find_ideal_split(df)
-    tree = grow_tree(df, 5, 10)
-#    pprint(tree)
+    test_tree = grow_tree(df, 5, 10)
+    pprint(test_tree)
 
-    for i in ('specificity', 'accuracy', 'recall'):
-        res = evaluate_tree(df, tree, metric=i)
+    print('evaluation test: \n ---------------------------')
+
+    for eval_metric in ('specificity', 'accuracy', 'recall'):
+        res = evaluate_tree(df, test_tree, metric=eval_metric)
         print(f'tree {res["metric"]}: {res["value"]}')
