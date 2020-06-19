@@ -437,23 +437,19 @@ if __name__ == '__main__':
     df.dropna(subset=['Embarked'], inplace=True)
     df.drop(columns=['Ticket', 'Name', 'Cabin', 'PassengerId'], inplace=True)
 
-    # set training data
-    df = df.loc[1:df.shape[0]*0.8]
-    df_test = df.loc[df.shape[0]*0.8:]
+    # set training data for id3 - only categorical
+    df_id3 = df[['Survived', 'Pclass', 'Sex', 'SibSp', 'Parch', 'Embarked']]
 
-    print(df.shape)
-    print(df_test.shape)
-
-    id3 = ID3Tree(data=df,
+    id3 = ID3Tree(data=df_id3,
                   target_column='Survived',
-                  max_depth=3)
+                  max_depth=4)
 
     id3.fit()
 
     c45 = C45Tree(data=df,
                   target_column='Survived',
-                  max_depth=3)
+                  max_depth=4)
     c45.fit()
 
-    for i in (id3, c45):
-        pprint(i.evaluate(df_test))
+    pprint(c45.evaluate(df))
+    pprint(id3.evaluate(df_id3))
