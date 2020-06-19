@@ -98,7 +98,7 @@ def split_non_numeric(attribute: str,
     return parts
 
 
-def information_gain(before_split: np.array,
+def information_gain(before_split: pd.DataFrame,
                      splits: tuple,
                      target_column: str = t_col) -> float:
     """
