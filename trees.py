@@ -216,6 +216,58 @@ def find_ideal_split(data: pd.DataFrame,
     return result
 
 
+def find_ideal_split_id3(data: pd.DataFrame,
+                         target_column: str,
+                         criterion: str) -> dict:
+    """
+    look over all attributes of the data, numeric and non-numeric, get best splits for them
+    :param data:
+    :param target_column:
+    :param criterion
+    :return:
+    """
+
+    assert criterion in ('information_gain', 'information_gain_ratio'), "valid criteria: 'information_gain', 'information_gain_ratio'"
+
+    attributes = filter(lambda x: x != target_column, data.columns)
+    # apparently, with enough tree depth no attributes are left
+    # shouldn't happen, solved with assert / split depth < attribute number
+
+    split_attribute = None
+    best_ig = 0
+    split_value = 0
+    best_splits = None
+    leaf_sizes = 0
+    numeric_split = None
+
+    # first check if split on numeric / non-numeric
+    for attribute in attributes:
+        # non-numeric split - this supports multi-way-split
+        parts = split_non_numeric(attribute=attribute, data=data)
+        if criterion == 'information_gain':
+            benchmark = information_gain(before_split=data, splits=parts, target_column=target_column)
+        else:
+            benchmark = information_gain_ratio(before_split=data, splits=parts, target_column=target_column)
+
+        if benchmark > best_ig:
+            best_ig = benchmark
+            split_value = None
+            split_attribute = attribute
+            numeric_split = False
+            best_splits = parts
+            leaf_sizes = [part.shape[0] for part in parts]
+
+    # hand over a dict for convenience
+    result = {'value': split_value,
+              'split_attribute': split_attribute,
+              f'best_{criterion}': best_ig,
+              'splits': best_splits,
+              'numeric_split': numeric_split,
+              'leaf_sizes': leaf_sizes}
+
+    return result
+
+
 def create_leaf(part: pd.DataFrame,
                 target_column: str) -> int:
     """
@@ -299,6 +351,74 @@ def split(node: dict,
             split(node[i], max_depth, min_size, target_column, depth=depth+1, split_criterion=split_criterion)
 
 
+def split_id3(node: dict,
+              max_depth: int,
+              min_size: int,
+              target_column: str,
+              split_criterion: str,
+              depth: int = 1) -> None:
+    """
+    takes in a dict and modifies (recursively splits) it
+    until max depth is reached or the sub-dicts (child nodes) are pure
+    the dict is modified in place
+
+    :param node: initial dict
+    :param max_depth: maximum recursion depth (if nodes are not pure yet, majority vote (see create_leaf)
+    :param min_size: minimum leaf-size
+    :param depth: current depth, used to track recursion limit
+    :param target_column:
+    :param split_criterion:
+    :return: None
+    """
+
+    # get the child splits out of the node-dict
+    sub_nodes = node['splits']
+    # records what the child-nodes were split on
+    split_attribute = node['split_attribute']
+    # bool - if the split was numeric or not - if False this may be a multiway-split
+    node_split_numeric = node['numeric_split']
+    # this is used for iterating over the child nodes
+    number_nodes = len(sub_nodes)
+
+    # free up memory from the original dict (otherwise data is duplicated while this runs
+    del (node['splits'])
+
+    if number_nodes == 1:
+        # only one group is left, make a leaf
+        node[0] = node[1] = create_leaf(pd.concat(sub_nodes),
+                                        target_column)
+        return
+
+    # check if max_depth is reached
+    if depth >= max_depth:
+        # create a leaf for each group
+        for i in range(number_nodes):
+            # concatenate all the nodes into one, majority vote
+            node[i] = create_leaf(sub_nodes[i],
+                                  target_column)
+        return
+
+    # process all child nodes
+    for i in range(number_nodes):
+        # todo: logically create the dict key from i --> if numeric split: greater/smaller, else plain values
+        child_node = sub_nodes[i]
+
+        # check for minimum size
+        if child_node.shape[0] <= min_size:
+            node[i] = create_leaf(child_node,
+                                  target_column)
+
+        # check for pure node - if the node is pure, make it terminal
+        elif child_node[target_column].nunique() == 1:
+            node[i] = create_leaf(child_node,
+                                  target_column)
+
+        # if no exit case is reached, go one level lower
+        else:
+            node[i] = find_ideal_split_id3(child_node, target_column, criterion=split_criterion)
+            split(node[i], max_depth, min_size, target_column, depth=depth+1, split_criterion=split_criterion)
+
+
 def predict_row(row: pd.DataFrame,
                 tree: dict,
                 data: pd.DataFrame) -> int:
@@ -351,17 +471,17 @@ class ID3Tree:
         assert self.max_depth < (self.data.shape[1] - 1), 'max depth of the tree must be less than attributes of the data '
 
         # start the tree off with the first split
-        root = find_ideal_split(self.data,
-                                target_column=self.target_column,
-                                criterion='information_gain')
+        root = find_ideal_split_id3(self.data,
+                                    target_column=self.target_column,
+                                    criterion='information_gain')
 
         # recursion, see above
-        split(root,
-              self.max_depth,
-              self.min_leaf_size,
-              self.target_column,
-              depth=1,
-              split_criterion='information_gain')
+        split_id3(root,
+                  self.max_depth,
+                  self.min_leaf_size,
+                  self.target_column,
+                  depth=1,
+                  split_criterion='information_gain')
 
         self.tree_dict_ = root
 
@@ -438,11 +558,13 @@ if __name__ == '__main__':
     df.drop(columns=['Ticket', 'Name', 'Cabin', 'PassengerId'], inplace=True)
 
     # set training data for id3 - only categorical
-    df_id3 = df[['Survived', 'Pclass', 'Sex', 'SibSp', 'Parch', 'Embarked']]
+    df_id3 = df[['Survived', 'Pclass', 'Sex', 'Parch', 'Embarked']].copy()
+    df_id3['Pclass'] = df_id3['Pclass'].astype(str)
+    df_id3['Parch'] = df_id3['Parch'].astype(str)
 
     id3 = ID3Tree(data=df_id3,
                   target_column='Survived',
-                  max_depth=4)
+                  max_depth=3)
 
     id3.fit()
 
