@@ -136,7 +136,7 @@ def information_gain_ratio(before_split: pd.DataFrame,
     for i in splits:
         if i.shape[0] == 0:
             continue
-        inc = -1 * i.shape[0]/before_split.size * log2(i.shape[0]/before_split.size)
+        inc = - i.shape[0] * i.shape[0]/before_split.size * log2(i.shape[0]/before_split.size)
         split_info += inc
 
     igr = splits_information_gain / split_info
@@ -332,7 +332,6 @@ def split(node: dict,
 
     # process all child nodes
     for i in range(number_nodes):
-        # todo: logically create the dict key from i --> if numeric split: greater/smaller, else plain values
         child_node = sub_nodes[i]
 
         # check for minimum size
@@ -400,7 +399,6 @@ def split_id3(node: dict,
 
     # process all child nodes
     for i in range(number_nodes):
-        # todo: logically create the dict key from i --> if numeric split: greater/smaller, else plain values
         child_node = sub_nodes[i]
 
         # check for minimum size
@@ -433,8 +431,6 @@ def predict_row(row: pd.DataFrame,
     if not tree['value']:
         # for a numeric split, go in the direction that lines up with the value chosen
         # helper dict
-        # todo: replace condition by numeric_split
-        # todo: replace with direction by attribute value
         value_dic = {v: k for k, v in enumerate(data[traversal_attribute].unique())}
         direction = value_dic[row[traversal_attribute]]
 
